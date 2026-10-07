@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DNS Benchmark</title>
+<style>
+:root{--bg:#fff;--fg:#111;--mut:#666;--line:#ddd;--ok:#1a7f37;--bar:#3b82f6}
+@media (prefers-color-scheme:dark){:root{--bg:#111;--fg:#eee;--mut:#999;--line:#333;--ok:#3fb950}}
+body{background:var(--bg);color:var(--fg);font:14px system-ui;max-width:960px;margin:auto;padding:16px}
+textarea{width:100%;box-sizing:border-box;font:12px monospace;background:var(--bg);color:var(--fg)}
+table{width:100%;border-collapse:collapse;margin-top:12px}td,th{padding:4px 6px;border-bottom:1px solid var(--line);text-align:right}
+td:nth-child(2),th:nth-child(2),td:nth-child(3),th:nth-child(3){text-align:left}.dnssec{color:var(--ok)}.side{opacity:.45}
+.b{background:var(--bar);height:6px;border-radius:3px}small{color:var(--mut)}label{margin-right:10px}
+</style></head><body>
+<h1>DNS Benchmark</h1>
+<p><small>All queries are sent and timed from this machine. 📌 = your system's resolvers. Green = returns DNSSEC-validated (AD) answers.</small></p>
+<details><summary>Resolvers (name, proto, address per line — proto is udp, dot (ip@hostname) or doh (URL))</summary><textarea id="list" rows="30">Cloudflare, udp, 1.1.1.1
+Cloudflare, udp, 2606:4700:4700::1111
+Cloudflare, dot, 1.1.1.1@cloudflare-dns.com
+Cloudflare, doh, https://cloudflare-dns.com/dns-query
+Google, udp, 8.8.8.8
+Google, udp, 2001:4860:4860::8888
+Google, dot, 8.8.8.8@dns.google
+Google, doh, https://dns.google/dns-query
+Quad9, udp, 9.9.9.9
+Quad9, udp, 2620:fe::fe
+Quad9, dot, 9.9.9.9@dns.quad9.net
+Quad9, doh, https://dns.quad9.net/dns-query
+AdGuard, udp, 94.140.14.14
+AdGuard, udp, 2a10:50c0::ad1:ff
+AdGuard, dot, 94.140.14.14@dns.adguard-dns.com
+AdGuard, doh, https://dns.adguard-dns.com/dns-query
+OpenDNS, udp, 208.67.222.222
+OpenDNS, udp, 2620:119:35::35
+OpenDNS, doh, https://doh.opendns.com/dns-query
+ControlD, udp, 76.76.2.0
+ControlD, dot, 76.76.2.11@p0.freedns.controld.com
+ControlD, doh, https://freedns.controld.com/p0
+Mullvad, dot, 194.242.2.2@dns.mullvad.net
+Mullvad, doh, https://dns.mullvad.net/dns-query
+NextDNS, doh, https://dns.nextdns.io/dns-query
+DNS.SB, udp, 185.222.222.222
+DNS.SB, doh, https://doh.dns.sb/dns-query</textarea></details>
+<p>
+ <label><input type="checkbox" class="pf" value="IPv4" checked> IPv4</label>
+ <label><input type="checkbox" class="pf" value="IPv6" checked> IPv6</label>
+ <label><input type="checkbox" class="pf" value="DoT" checked> DoT</label>
+ <label><input type="checkbox" class="pf" value="DoH" checked> DoH</label>
+</p>
+<p>Rounds <input id="rounds" type="number" value="10" min="1" max="100" style="width:4em">
+ Sideline if no reply under <input id="side" type="number" value="50" style="width:4em"> ms
+ <button id="go">Run</button> <button id="csv" disabled>CSV</button> <span id="prog"></span></p>
+<table><thead><tr><th>#</th><th>Resolver</th><th>Proto</th><th>Cached</th><th>Uncached</th><th>Popular</th><th>Overall ±σ</th><th>Fail</th><th style="width:16%"></th></tr></thead><tbody id="out"></tbody></table>
+<script>
+const POPULAR=['google.com','youtube.com','facebook.com','amazon.com','wikipedia.org','apple.com','microsoft.com','netflix.com','github.com','reddit.com','cloudflare.com','x.com','instagram.com','linkedin.com','yahoo.com','bing.com','tiktok.com','zoom.us','twitch.tv','paypal.com'];
+const label=(p,a)=>p=='dot'?'DoT':p=='doh'?'DoH':a.includes(':')?'IPv6':'IPv4';
+let system=[];
+fetch('/system').then(r=>r.json()).then(s=>system=s);
+
+async function ask(r,name){
+  const x=await fetch(`/q?proto=${r.proto}&addr=${encodeURIComponent(r.addr)}&name=${name}`).then(r=>r.json()).catch(()=>({err:'local'}));
+  return x.err?null:x;
+}
+const rnd=()=>Math.random().toString(36).slice(2,12);
+const stat=a=>{if(!a.length)return null;const s=[...a].sort((x,y)=>x-y),m=a.reduce((x,y)=>x+y)/a.length;
+  return{med:s[s.length>>1],mean:m,sd:Math.sqrt(a.reduce((x,y)=>x+(y-m)**2,0)/a.length)}};
+const f=v=>v==null?'—':v.toFixed(1);
+let rows=[];
+
+go.onclick=async()=>{
+  go.disabled=true;csv.disabled=true;prog.textContent='warming up…';
+  const R=+rounds.value, side=+document.getElementById('side').value;
+  const on=new Set([...document.querySelectorAll('.pf:checked')].map(c=>c.value));
+  rows=[...system.map(a=>['System','udp',a,true]),...list.value.split('\n').map(l=>l.split(',').map(s=>s.trim())).filter(x=>x[2])]
+    .map(([name,proto,addr,pin])=>({name,proto,addr,pin:!!pin,kind:label(proto,addr),c:[],u:[],p:[],fail:0,ad:false,side:false}))
+    .filter(r=>on.has(r.kind));
+  // warm-up opens TLS/HTTP2 connections; then sideline resolvers never fast in 10 tries
+  await Promise.all(rows.map(async r=>{
+    await ask(r,'example.com');
+    let best=Infinity;for(let i=0;i<10;i++){const x=await ask(r,'example.com');if(x){best=Math.min(best,x.ms);r.ad||=x.ad}}
+    r.dead=best==Infinity;r.side=best>side&&!r.pin;
+  }));
+  const live=rows.filter(r=>!r.side&&!r.dead), total=R*live.length;let done=0;render();
+  for(let i=0;i<R;i++){
+    const pop=POPULAR[i%POPULAR.length], unc=rnd()+'.dnsbench-'+rnd()+'.com';
+    // ponytail: sequential to avoid self-congestion skewing timings; slow on big lists
+    for(const r of live.sort(()=>Math.random()-.5)){
+      for(const [k,n] of [['c','example.com'],['u',unc],['p',pop]]){
+        const x=await ask(r,n);x?r[k].push(x.ms):r.fail++;
+        await new Promise(s=>setTimeout(s,20));
+      }
+      prog.textContent=`${Math.round(++done/total*100)}%`;render();
+    }
+  }
+  go.disabled=false;csv.disabled=false;prog.textContent='done';
+};
+// Rank on median of all queries equally (cached, uncached, popular); system resolvers pinned on top
+function render(){
+  rows.forEach(r=>r.all=stat([...r.c,...r.u,...r.p]));
+  rows.sort((a,b)=>b.pin-a.pin||(a.side||a.dead)-(b.side||b.dead)||(a.all?.med??1e9)-(b.all?.med??1e9));
+  const max=Math.max(...rows.map(r=>r.all?.med||0),1);
+  out.innerHTML=rows.map((r,i)=>`<tr class="${r.side||r.dead?'side':''}"><td>${i+1}</td>
+    <td class="${r.ad?'dnssec':''}">${r.pin?'📌 ':''}${r.name} <small>${r.addr}${r.dead?' — no response':r.side?' — sidelined':''}</small></td><td>${r.kind}</td>
+    <td>${f(stat(r.c)?.med)}</td><td>${f(stat(r.u)?.med)}</td><td>${f(stat(r.p)?.med)}</td>
+    <td>${f(r.all?.med)} ±${f(r.all?.sd)}</td><td>${r.fail}</td><td><div class="b" style="width:${(r.all?.med||0)/max*100}%"></div></td></tr>`).join('');
+}
+csv.onclick=()=>{
+  const t='rank,name,proto,address,cached_ms,uncached_ms,popular_ms,overall_ms,stddev,fail,dnssec\n'+rows.map((r,i)=>
+    [i+1,r.name,r.kind,r.addr,f(stat(r.c)?.med),f(stat(r.u)?.med),f(stat(r.p)?.med),f(r.all?.med),f(r.all?.sd),r.fail,r.ad].join(',')).join('\n');
+  Object.assign(document.createElement('a'),{href:URL.createObjectURL(new Blob([t])),download:'dnsbench.csv'}).click();
+};
+</script></body></html>

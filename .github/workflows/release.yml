@@ -1,0 +1,56 @@
+# Builds standalone executables (Node single executable application) and
+# attaches them to a GitHub Release whenever a v* tag is pushed.
+name: release
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - { os: macos-latest, name: mac-apple-silicon, bin: dnsbench }
+          - { os: macos-15-intel, name: mac-intel, bin: dnsbench }
+          - { os: windows-latest, name: windows, bin: dnsbench.exe }
+          - { os: ubuntu-latest, name: linux, bin: dnsbench }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - name: Build
+        shell: bash
+        run: |
+          mkdir -p dist
+          node --experimental-sea-config sea-config.json
+          node -e "require('fs').copyFileSync(process.execPath, 'dist/${{ matrix.bin }}')"
+          if [ "$RUNNER_OS" = macOS ]; then
+            codesign --remove-signature dist/dnsbench
+            npx -y postject dist/dnsbench NODE_SEA_BLOB dist/sea-prep.blob --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8e5b8d4fd4b --macho-segment-name NODE_SEA
+            codesign --sign - dist/dnsbench
+          else
+            npx -y postject dist/${{ matrix.bin }} NODE_SEA_BLOB dist/sea-prep.blob --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8e5b8d4fd4b
+          fi
+      - name: Self-test
+        shell: bash
+        run: dist/${{ matrix.bin }} --selftest
+      - name: Package
+        shell: bash
+        run: |
+          cd dist
+          if [ "$RUNNER_OS" = Windows ]; then 7z a ../dnsbench-${{ matrix.name }}.zip dnsbench.exe
+          else zip ../dnsbench-${{ matrix.name }}.zip dnsbench; fi
+      - uses: actions/upload-artifact@v4
+        with: { name: '${{ matrix.name }}', path: 'dnsbench-${{ matrix.name }}.zip' }
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { merge-multiple: true }
+      - uses: softprops/action-gh-release@v2
+        with: { files: '*.zip' }
