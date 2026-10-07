@@ -1,6 +1,6 @@
 {
   "main": "server.js",
-  "output": "dist/sea-prep.blob",
+  "output": "dist/dnsbench",
   "disableExperimentalSEAWarning": true,
   "assets": { "index.html": "public/index.html" }
 }

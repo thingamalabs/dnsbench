@@ -20,20 +20,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: 24 }
+        with: { node-version: 26 }
       - name: Build
         shell: bash
         run: |
           mkdir -p dist
-          node --experimental-sea-config sea-config.json
-          node -e "require('fs').copyFileSync(process.execPath, 'dist/${{ matrix.bin }}')"
-          if [ "$RUNNER_OS" = macOS ]; then
-            codesign --remove-signature dist/dnsbench
-            npx -y postject dist/dnsbench NODE_SEA_BLOB dist/sea-prep.blob --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8e5b8d4fd4b --macho-segment-name NODE_SEA
-            codesign --sign - dist/dnsbench
-          else
-            npx -y postject dist/${{ matrix.bin }} NODE_SEA_BLOB dist/sea-prep.blob --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8e5b8d4fd4b
-          fi
+          node -e "const c=require('./sea-config.json');c.output='dist/${{ matrix.bin }}';require('fs').writeFileSync('sea-ci.json',JSON.stringify(c))"
+          node --build-sea sea-ci.json
+          if [ "$RUNNER_OS" = macOS ]; then codesign --force --sign - dist/dnsbench; fi
       - name: Self-test
         shell: bash
         run: dist/${{ matrix.bin }} --selftest

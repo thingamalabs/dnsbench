@@ -30,7 +30,7 @@ Your browser opens the benchmark page. Click **Run**. A terminal window stays op
 
 ## For developers
 ```
-node server.js             # run from source (Node 24+)
+node server.js             # run from source (Node 22+; building needs Node 26)
 node server.js --selftest  # one query per protocol
 git tag v1.0.0 && git push --tags   # builds Mac/Windows/Linux releases via GitHub Actions
 ```
