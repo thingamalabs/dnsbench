@@ -47,12 +47,17 @@ DNS.SB, doh, https://doh.dns.sb/dns-query</textarea></details>
 </p>
 <p>Rounds <input id="rounds" type="number" value="10" min="1" max="100" style="width:4em">
  Sideline if no reply under <input id="side" type="number" value="50" style="width:4em"> ms
- <button id="go">Run</button> <button id="csv" disabled>CSV</button> <span id="prog"></span></p>
+ <button id="go">Run</button> <button id="reset" title="Restore the built-in resolver list">Reset list</button> <button id="csv" disabled>CSV</button> <span id="prog"></span></p>
 <table><thead><tr><th>#</th><th>Resolver</th><th>Proto</th><th>Cached</th><th>Uncached</th><th>Popular</th><th>Overall ±σ</th><th>Fail</th><th style="width:16%"></th></tr></thead><tbody id="out"></tbody></table>
 <script>
 const POPULAR=['google.com','youtube.com','facebook.com','amazon.com','wikipedia.org','apple.com','microsoft.com','netflix.com','github.com','reddit.com','cloudflare.com','x.com','instagram.com','linkedin.com','yahoo.com','bing.com','tiktok.com','zoom.us','twitch.tv','paypal.com'];
 const label=(p,a)=>p=='dot'?'DoT':p=='doh'?'DoH':a.includes(':')?'IPv6':'IPv4';
 let system=[];
+// Remember resolver-list edits in this browser; Reset restores the built-in list
+const DEFAULT_LIST=list.value;
+try{const saved=localStorage.getItem('resolvers');if(saved)list.value=saved}catch{}
+list.oninput=()=>{try{localStorage.setItem('resolvers',list.value)}catch{}};
+reset.onclick=()=>{if(confirm('Replace your resolver list with the built-in defaults?')){list.value=DEFAULT_LIST;try{localStorage.removeItem('resolvers')}catch{}}};
 fetch('/system').then(r=>r.json()).then(s=>system=s);
 
 async function ask(r,name){
