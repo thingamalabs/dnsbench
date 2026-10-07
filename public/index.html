@@ -8,7 +8,7 @@ body{background:var(--bg);color:var(--fg);font:14px system-ui;max-width:960px;ma
 textarea{width:100%;box-sizing:border-box;font:12px monospace;background:var(--bg);color:var(--fg)}
 table{width:100%;border-collapse:collapse;margin-top:12px}td,th{padding:4px 6px;border-bottom:1px solid var(--line);text-align:right}
 td:nth-child(2),th:nth-child(2),td:nth-child(3),th:nth-child(3){text-align:left}.dnssec{color:var(--ok)}.side{opacity:.45}
-.b{background:var(--bar);height:6px;border-radius:3px}small{color:var(--mut)}label{margin-right:10px}
+.b{background:var(--bar);height:6px;border-radius:3px}small{color:var(--mut)}footer{margin-top:24px;color:var(--mut);font-size:13px}footer a{color:inherit}label{margin-right:10px}
 </style></head><body>
 <h1>DNS Benchmark</h1>
 <p><small>All queries are sent and timed from this machine. 📌 = your system's resolvers. Green = returns DNSSEC-validated (AD) answers.</small></p>
@@ -49,6 +49,9 @@ DNS.SB, doh, https://doh.dns.sb/dns-query</textarea></details>
  Sideline if no reply under <input id="side" type="number" value="50" style="width:4em"> ms
  <button id="go">Run</button> <button id="reset" title="Restore the built-in resolver list">Reset list</button> <button id="csv" disabled>CSV</button> <span id="prog"></span></p>
 <table><thead><tr><th>#</th><th>Resolver</th><th>Proto</th><th>Cached</th><th>Uncached</th><th>Popular</th><th>Overall ±σ</th><th>Fail</th><th style="width:16%"></th></tr></thead><tbody id="out"></tbody></table>
+<footer>Free &amp; open source (MIT) by <a href="https://github.com/thingamalabs" target="_blank" rel="noopener">thingamalabs</a> ·
+ <a href="https://github.com/thingamalabs/dnsbench" target="_blank" rel="noopener">source</a> ·
+ <a href="https://ko-fi.com/thingamalabs" target="_blank" rel="noopener">☕ Buy me a coffee</a></footer>
 <script>
 const POPULAR=['google.com','youtube.com','facebook.com','amazon.com','wikipedia.org','apple.com','microsoft.com','netflix.com','github.com','reddit.com','cloudflare.com','x.com','instagram.com','linkedin.com','yahoo.com','bing.com','tiktok.com','zoom.us','twitch.tv','paypal.com'];
 const label=(p,a)=>p=='dot'?'DoT':p=='doh'?'DoH':a.includes(':')?'IPv6':'IPv4';

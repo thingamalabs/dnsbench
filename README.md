@@ -1,5 +1,7 @@
 # DNS Benchmark
 
+A free little tool from [thingamalabs](https://github.com/thingamalabs). Find it useful? [☕ Buy me a coffee](https://ko-fi.com/thingamalabs)
+
 Find the fastest DNS resolver from **your** network. Tests plain DNS (IPv4/IPv6),
 DNS-over-TLS (DoT) and DNS-over-HTTPS (DoH) side by side, including the resolvers
 your computer currently uses.
@@ -34,3 +36,6 @@ node server.js             # run from source (Node 22+; building needs Node 26)
 node server.js --selftest  # one query per protocol
 git tag v1.0.0 && git push --tags   # builds Mac/Windows/Linux releases via GitHub Actions
 ```
+
+## License
+MIT © 2026 thingamalabs — free to use, share and modify. If it saved you time, [a coffee](https://ko-fi.com/thingamalabs) is always appreciated.

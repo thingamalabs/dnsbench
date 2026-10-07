@@ -135,11 +135,12 @@ function openBrowser(url) {
 // Try 5353, then the next few ports if something else is using it
 function start(port) {
   server.once('error', e => e.code == 'EADDRINUSE' && port < PORT + 10 ? start(port + 1) : (console.error(e.message), process.exit(1)));
-  server.listen(port, '127.0.0.1', () => {
-    const url = `http://localhost:${port}`;
-    console.log(`DNS Benchmark running at ${url}\nClose this window to quit.`);
-    if (!process.argv.includes('--no-open')) openBrowser(url);
-  });
+  server.listen(port, '127.0.0.1');
 }
+server.once('listening', () => {
+  const url = `http://localhost:${server.address().port}`;
+  console.log(`DNS Benchmark running at ${url}\nClose this window to quit.`);
+  if (!process.argv.includes('--no-open')) openBrowser(url);
+});
 
 if (process.argv.includes('--selftest')) selftest(); else start(PORT);
